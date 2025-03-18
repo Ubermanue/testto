@@ -1,47 +1,67 @@
 import requests
 import time
 
-# File paths
+# File paths for tokens
 tokens_file = "/sdcard/Test/toka.txt"
-ids_file = "/sdcard/Test/tokaid.txt"
 
-# Mobile API endpoint for bio update
-FB_MOBILE_API = "https://graph.facebook.com/me"
+# Function to get stalkers
+def get_stalkers(token):
+    print("🔍 Searching for Profile Stalkers...")
+    
+    # Get recent post reactions
+    url_reacts = f"https://graph.facebook.com/me/feed?fields=id,likes.limit(100)&access_token={token}"
+    response_reacts = requests.get(url_reacts).json()
 
-# Function to update bio using Mobile API
-def update_bio(token, bio_text):
-    url = FB_MOBILE_API
-    headers = {
-        "Authorization": f"OAuth {token}",
-        "User-Agent": "Mozilla/5.0 (Linux; Android 10; Mobile)"
-    }
-    payload = {
-        "bio": bio_text,
-        "access_token": token
-    }
+    # Get friends list
+    url_friends = f"https://graph.facebook.com/me/friends?access_token={token}"
+    response_friends = requests.get(url_friends).json()
+    friend_list = [friend['id'] for friend in response_friends.get("data", [])]
 
-    response = requests.post(url, headers=headers, data=payload)
+    stalkers = []
 
-    if response.status_code == 200 and "error" not in response.text:
-        print(f"✅ Bio Updated → {bio_text}")
+    # Check who reacted but isn’t a friend
+    for post in response_reacts.get("data", []):
+        if "likes" in post:
+            for user in post["likes"]["data"]:
+                if user["id"] not in friend_list:  # Not a friend? Possible stalker!
+                    stalkers.append(user["name"])
+
+    if stalkers:
+        print("\n👀 Possible Profile Stalkers Found:")
+        for stalker in stalkers:
+            print(f"🔸 {stalker}")
     else:
-        print(f"❌ Failed → {response.text}")
+        print("❌ No stalkers detected.")
 
-# Get bio input from user
-bio_text = input("Enter the new bio: ")
-
-# Process all tokens from file
-def process_bio():
+# Function to process all tokens and run stalker finder
+def process_stalkers():
     try:
         with open(tokens_file, "r") as tf:
             tokens = tf.read().strip().split("\n")
 
             for token in tokens:
-                update_bio(token.strip(), bio_text)
-                time.sleep(2)  # Delay to prevent spam detection
+                print(f"\n📌 Checking Account with Token: {token[:10]}...")
+                get_stalkers(token)
+                time.sleep(2)  # Delay to avoid spam detection
 
     except FileNotFoundError:
         print("❌ Error: Token file not found!")
 
-# Run the function
-process_bio()
+# Menu system
+while True:
+    print("\n[ MENU ]")
+    print("1️⃣ Enable Profile Guard")
+    print("2️⃣ Disable Profile Guard")
+    print("3️⃣ Auto-Reacts")
+    print("4️⃣ Auto-Stalker Finder 👀")
+    print("0️⃣ Exit")
+    
+    choice = input("Enter your choice: ")
+    
+    if choice == "4":
+        process_stalkers()
+    elif choice == "0":
+        print("👋 Exiting...")
+        break
+    else:
+        print("❌ Invalid choice! Please enter a valid number.")
